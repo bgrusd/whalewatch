@@ -46,7 +46,5 @@
     "postcss": "^8.5.3",
     "tailwindcss": "^4.0.15"
   },
-  "homepage": "https://bgrusd.github.io/whalewatch",
-
-  
+  "homepage": "https://bgrusd.github.io/whalewatch"
 }
