@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+
+
 export default function LJPropertiesSales() {
   const [primaryResidence, setPrimaryResidence] = useState({
     currentValue: 7500000,
@@ -16,6 +18,18 @@ export default function LJPropertiesSales() {
   const [financialAssumptions] = useState({ capitalGainsTaxRate: 37.1 });
   const [years] = useState(5);
   const [saleBreakdown, setSaleBreakdown] = useState([]);
+
+  const LJPropertiesSales = ({ saleBreakdown }) => {
+    return (
+      <div>
+        {saleBreakdown.map(row => (
+          <div key={row.year}>
+            {/* render exactly the same markup you have in renderSalesTab */}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   useEffect(() => {
     const data = [];

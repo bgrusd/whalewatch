@@ -202,7 +202,7 @@ const LJPropertiesAnalyzer = () => {
     const oceanMortgageAnnualRenovated = oceanViewProperty.mortgagePaymentMonthlyRenovated * 12;
 
     // --- Option 1: Sell Ocean View As-Is ---
-    const saleValue = oceanViewProperty.appraisedValueAsIs;
+    const saleValue = oceanViewProperty.currentValue
     const commission = saleValue * 0.06;
     const netSaleProceeds = saleValue - commission;
     const capitalGains = Math.max(netSaleProceeds - oceanViewProperty.taxBasisAsIs, 0);
@@ -450,32 +450,32 @@ const LJPropertiesAnalyzer = () => {
     // --- Sales Breakdown for Each Year for Both Houses ---
     const saleBreakdown = [];
     for (let year = 1; year <= years; year++) {
-    // Primary Residence sale
+      // Primary sale
       const salePricePrimary = primaryResidence.currentValue * Math.pow(1 + primaryResidence.annualAppreciation/100, year - 1);
       const commissionPrimary = salePricePrimary * 0.06;
       const capitalGainsPrimary = Math.max(salePricePrimary - commissionPrimary - primaryResidence.taxBasis, 0);
       const taxesPrimary = capitalGainsPrimary * (financialAssumptions.capitalGainsTaxRate/100);
       const netProceedsPrimary = salePricePrimary - commissionPrimary - taxesPrimary;
-
-      // Ocean View As‑Is sale
+  
+      // Ocean As‑Is sale
       const salePriceOceanAsIs = oceanViewProperty.currentValue * Math.pow(1 + oceanViewProperty.annualAppreciation/100, year - 1);
       const commissionOceanAsIs = salePriceOceanAsIs * 0.06;
       const capitalGainsOceanAsIs = Math.max(salePriceOceanAsIs - commissionOceanAsIs - oceanViewProperty.taxBasisAsIs, 0);
       const taxesOceanAsIs = capitalGainsOceanAsIs * (financialAssumptions.capitalGainsTaxRate/100);
       const netProceedsOceanAsIs = salePriceOceanAsIs - commissionOceanAsIs - taxesOceanAsIs;
-
-      // Ocean View Renovated sale
+  
+      // Ocean Renovated sale
       const salePriceOceanRenovated = oceanViewProperty.postRenovationValue * Math.pow(1 + oceanViewProperty.annualAppreciation/100, year - 1);
       const commissionOceanRenovated = salePriceOceanRenovated * 0.06;
       const capitalGainsOceanRenovated = Math.max(salePriceOceanRenovated - commissionOceanRenovated - oceanViewProperty.taxBasisRenovated, 0);
       const taxesOceanRenovated = capitalGainsOceanRenovated * (financialAssumptions.capitalGainsTaxRate/100);
       const netProceedsOceanRenovated = salePriceOceanRenovated - commissionOceanRenovated - taxesOceanRenovated;
-
+  
       saleBreakdown.push({
         year,
         salePricePrimary,
-       commissionPrimary,
-       taxableBasisPrimary: primaryResidence.taxBasis,
+        commissionPrimary,
+        taxableBasisPrimary: primaryResidence.taxBasis,
         taxesPrimary,
         netProceedsPrimary,
         salePriceOceanAsIs,
@@ -490,18 +490,8 @@ const LJPropertiesAnalyzer = () => {
         netProceedsOceanRenovated
       });
     }
-
-    return {
-      option1,
-      option2,
-      option3,
-      breakdown: {
-        option1: option1Breakdown,
-        option2: option2Breakdown,
-        option3: option3Breakdown
-      },
-      saleBreakdown
-    };
+  
+    return { option1, option2, option3, breakdown: { option1: option1Breakdown, option2: option2Breakdown, option3: option3Breakdown }, saleBreakdown };
   }
 
   // Handlers for input changes.
@@ -659,42 +649,67 @@ const LJPropertiesAnalyzer = () => {
     </table>
   );
 
-  // Render Sales Tab.
-  const renderSalesTab = () => (
-    <div>
-      {results.saleBreakdown.map((row) => (
-        <div key={row.year} style={{ marginBottom: '24px', padding: '12px', border: '1px solid #ccc', borderRadius: '8px' }}>
-          <h4>Year {row.year}</h4>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead style={{ backgroundColor: '#f9fafb' }}>
-              <tr>
-                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Metric</th>
-                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Primary Residence</th>
-                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Ocean View (As‑Is)</th>
-                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Ocean View (Renovated)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                ['Sale Price', 'salePricePrimary', 'salePriceOceanAsis', 'salePriceOceanRenovated'],
-                ['Commission', 'commissionPrimary', 'commissionOceanAsis', 'commissionOceanRenovated'],
-                ['Taxable Basis', 'taxableBasisPrimary', 'taxableBasisOceanAsIs', 'taxableBasisOceanRenovated'],
-                ['Taxes', 'taxesPrimary', 'taxesOceanAsIs', 'taxesOceanRenovated'],
-                ['Net Proceeds', 'netProceedsPrimary', 'netProceedsOceanAsIs', 'netProceedsOceanRenovated']
-              ].map(([label, pField, oAsIsField, oRenField]) => (
-                <tr key={label}>
-                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>{label}</td>
-                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>${formatNumber(row[pField])}</td>
-                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>${formatNumber(row[oAsIsField])}</td>
-                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>${formatNumber(row[oRenField])}</td>
-                </tr>
+  const renderSalesTab = () => {
+    const columns = [
+      { label: 'Metric', key: 'label' },
+      { label: 'Primary Residence', key: 'primary' },
+      { label: 'Ocean View (As‑Is)', key: 'asis' },
+      { label: 'Ocean View (Renovated)', key: 'renovated' }
+    ];
+  
+    const rows = [
+      ['Sale Price', 'salePricePrimary', 'salePriceOceanAsIs', 'salePriceOceanRenovated'],
+      ['Commission', 'commissionPrimary', 'commissionOceanAsIs', 'commissionOceanRenovated'],
+      ['Taxable Basis', 'taxableBasisPrimary', 'taxableBasisOceanAsIs', 'taxableBasisOceanRenovated'],
+      ['Taxes', 'taxesPrimary', 'taxesOceanAsIs', 'taxesOceanRenovated'],
+      ['Net Proceeds', 'netProceedsPrimary', 'netProceedsOceanAsIs', 'netProceedsOceanRenovated'],
+    ];
+  
+    return (
+      <div style={{ overflowX: 'auto', marginTop: 16 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {columns.map(col => (
+                <th
+                  key={col.key}
+                  style={{
+                    padding: '12px',
+                    borderBottom: '2px solid #d1d5db',
+                    textAlign: col.key === 'label' ? 'left' : 'right',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    backgroundColor: '#f9fafb'
+                  }}
+                >
+                  {col.label}
+                </th>
               ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
-    </div>
-  );
+            </tr>
+          </thead>
+          <tbody>
+            {results.saleBreakdown.map((yearData) => (
+              <React.Fragment key={yearData.year}>
+                <tr style={{ backgroundColor: '#e5e7eb' }}>
+                  <td colSpan={4} style={{ padding: '8px 12px', fontWeight: 500 }}>
+                    Year {yearData.year}
+                  </td>
+                </tr>
+                {rows.map(([label, pField, oAsIsField, oRenField]) => (
+                  <tr key={label} style={{ backgroundColor: yearData.year % 2 === 0 ? '#ffffff' : '#f3f4f6' }}>
+                    <td style={{ padding: '8px 12px', textAlign: 'left' }}>{label}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>${formatNumber(yearData[pField] || 0)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>${formatNumber(yearData[oAsIsField] || 0)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>${formatNumber(yearData[oRenField] || 0)}</td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
   // Render Cashflow Tab.
   const renderCashflowTab = () => {
     const renderDiscountedTable = (data, optionName) => {
@@ -1011,7 +1026,7 @@ const LJPropertiesAnalyzer = () => {
     <div style={{ padding: '24px' }}>
       {renderTabs()}
       {activeTab === 'assumptions' && renderAssumptionsTab()}
-      {activeTab === 'sales' && <LJPropertiesSales />}
+      {activeTab === 'sales' && renderSalesTab()}
       {activeTab === 'cashflow' && renderCashflowTab()}
       {activeTab === 'propertyValues' && renderPropertyValuesTab()}
       {activeTab === 'returns' && renderReturnsTab()}
