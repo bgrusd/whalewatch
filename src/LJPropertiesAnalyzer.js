@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LJPropertiesSales from './LJPropertiesSales';
 
 // SmartInputField: A simple input component that formats values.
 const SmartInputField = ({ label, name, value, onBlurChange, percent = false, dollarSign = false }) => {
@@ -98,7 +99,7 @@ const SmartInputField = ({ label, name, value, onBlurChange, percent = false, do
 // LJPropertiesAnalyzer Component
 //////////////////////////////////////////////
 const LJPropertiesAnalyzer = () => {
-  // Primary Residence state (includes appraisedValue and taxBasis)
+  // Primary Residence state (with appraisedValue and taxBasis)
   const [primaryResidence, setPrimaryResidence] = useState({
     name: "Primary Residence",
     currentValue: 7500000,
@@ -117,14 +118,15 @@ const LJPropertiesAnalyzer = () => {
     mortgagePaymentMonthly: 8425.46
   });
 
-  // Ocean View Property state (with two appraised values and taxBasis)
+  // Ocean View Property state (with two appraised values and separate tax bases)
   const [oceanViewProperty, setOceanViewProperty] = useState({
     name: "Ocean View Property",
     currentValue: 14000000,
     appraisedValueAsIs: 8500000,
     appraisedValueRenovated: 13500000,
-    taxBasis: 8500000,
-    renovationCost: 500000,
+    taxBasisAsIs: 8500000,
+    taxBasisRenovated: 13500000,
+    renovationCost: 5000000,
     squareFeet: 5000,
     postRenovationValue: 18000000,
     rentalIncomeMonthlyAsIs: 25000,
@@ -152,25 +154,25 @@ const LJPropertiesAnalyzer = () => {
     investmentReturnRate: 7.5,
     mortgageInterestRate: 6.5,
     inflationRate: 3,
-    capitalGainsTaxRate: 23.8+13.3,
+    capitalGainsTaxRate: 23.8 + 13.3,  // equals 37.1
     propertyTaxRate: 1.25,
     analysisTimeframeYears: 5,
     rentalIncomeAnnualIncrease: 3,
     propertyManagementFeePercentage: 8
   });
 
-  // Results state: summary arrays and detailed breakdown objects.
+  // Results state (includes summary arrays and detailed breakdowns plus a sales breakdown)
   const [results, setResults] = useState({
     option1: { netCashflow: [], propertyValues: [], cumulativeReturn: [], npv: 0 },
     option2: { netCashflow: [], propertyValues: [], cumulativeReturn: [], npv: 0 },
     option3: { netCashflow: [], propertyValues: [], cumulativeReturn: [], npv: 0 },
     breakdown: { option1: [], option2: [], option3: [] },
-    saleBreakdown: {}
+    saleBreakdown: []  // Array of objects (one per year)
   });
 
   const [activeTab, setActiveTab] = useState('assumptions');
 
-  // Recalculate whenever any input changes.
+  // Recalculate whenever any state changes.
   useEffect(() => {
     const newResults = calculateFinancials();
     setResults(newResults);
@@ -191,7 +193,7 @@ const LJPropertiesAnalyzer = () => {
     return opts[0].name;
   };
 
-  // Detailed calculation function.
+  // Detailed Calculation Function.
   function calculateFinancials() {
     const discountRate = financialAssumptions.investmentReturnRate / 100;
     const years = financialAssumptions.analysisTimeframeYears;
@@ -203,12 +205,14 @@ const LJPropertiesAnalyzer = () => {
     const saleValue = oceanViewProperty.appraisedValueAsIs;
     const commission = saleValue * 0.06;
     const netSaleProceeds = saleValue - commission;
-    const capitalGains = netSaleProceeds - oceanViewProperty.taxBasis;
-    const capitalGainsTax = capitalGains > 0 ? capitalGains * (financialAssumptions.capitalGainsTaxRate / 100) : 0;
+    const capitalGains = Math.max(netSaleProceeds - oceanViewProperty.taxBasisAsIs, 0);
+    const capitalGainsTax = capitalGains * (financialAssumptions.capitalGainsTaxRate / 100);
     const afterTaxProceeds = netSaleProceeds - capitalGainsTax;
+    // Corpus for investment return in Option 1.
+    const option1Corpus = afterTaxProceeds;
 
     const option1 = {
-      name: "Option 1: Sell Ocean View Property As-Is",
+      name: "Option 1: Sell Ocean View As-Is",
       initialInvestment: 0,
       netCashflow: [],
       propertyValues: [],
@@ -229,23 +233,24 @@ const LJPropertiesAnalyzer = () => {
       const miscExpensePrimary = (primaryResidence.miscMaintenancePercent / 100) *
                                  (primaryResidence.currentValue * apprFactorPrimary);
       const totalPrimaryExpenses = maintenanceExpensePrimary + insuranceExpensePrimary + miscExpensePrimary;
-      // Primary property tax based on appraised value.
+      // Primary property tax.
       const primaryPropertyTax = primaryResidence.appraisedValue *
         Math.pow(1 + primaryResidence.annualAppreciation / 100, year - 1) *
         (financialAssumptions.propertyTaxRate / 100);
-      const investmentReturn = afterTaxProceeds * (financialAssumptions.investmentReturnRate / 100);
+      // Investment return on corpus.
+      const investmentReturn = option1Corpus * (financialAssumptions.investmentReturnRate / 100);
       const annualCashflow = investmentReturn - primaryPropertyTax - totalPrimaryExpenses - primaryMortgageAnnual;
       option1.netCashflow.push(annualCashflow);
-      const primaryValueEndOfYear = primaryResidence.currentValue *
-        Math.pow(1 + primaryResidence.annualAppreciation / 100, year);
+      const primaryValueEndOfYear = primaryResidence.currentValue * Math.pow(1 + primaryResidence.annualAppreciation / 100, year);
       option1.propertyValues.push(primaryValueEndOfYear);
-      const cumulativeReturn = afterTaxProceeds * Math.pow(1 + financialAssumptions.investmentReturnRate / 100, year) +
+      const cumulativeReturn = option1Corpus * Math.pow(1 + financialAssumptions.investmentReturnRate / 100, year) +
                                 primaryValueEndOfYear - primaryResidence.currentValue -
                                 (primaryPropertyTax + totalPrimaryExpenses + primaryMortgageAnnual) * year;
       option1.cumulativeReturn.push(cumulativeReturn);
       option1.npv += annualCashflow / Math.pow(1 + discountRate, year);
       option1Breakdown.push({
         year,
+        corpusForInvestReturn: option1Corpus,
         investmentReturn,
         primaryPropertyTax,
         maintenanceExpensePrimary,
@@ -275,7 +280,7 @@ const LJPropertiesAnalyzer = () => {
       const propertyManagementFee = rentalIncome * (financialAssumptions.propertyManagementFeePercentage / 100);
       const inflationFactor = Math.pow(1 + financialAssumptions.inflationRate / 100, year - 1);
       const apprFactorPrimary = Math.pow(1 + primaryResidence.annualAppreciation / 100, year - 1);
-      // Primary expenses (same as Option 1).
+      // Primary expenses.
       const primaryMonthlyMaintenance = primaryResidence.maintenancePoolMonthly +
                                         primaryResidence.maintenanceGardeningMonthly +
                                         primaryResidence.maintenanceUtilitiesMonthly +
@@ -285,7 +290,7 @@ const LJPropertiesAnalyzer = () => {
       const miscExpensePrimary = (primaryResidence.miscMaintenancePercent / 100) *
                                  (primaryResidence.currentValue * apprFactorPrimary);
       const totalPrimaryExpenses = maintenanceExpensePrimary + insuranceExpensePrimary + miscExpensePrimary;
-      // Ocean expenses breakdown.
+      // Ocean expenses.
       const oceanInflationFactor = inflationFactor;
       const oceanMonthlyMaintenance = oceanViewProperty.maintenancePoolMonthlyAsIs +
                                       oceanViewProperty.maintenanceGardeningMonthlyAsIs +
@@ -294,8 +299,7 @@ const LJPropertiesAnalyzer = () => {
       const maintenanceExpenseOcean = oceanMonthlyMaintenance * 12 * oceanInflationFactor;
       const insuranceExpenseOcean = oceanViewProperty.insuranceYearlyAsIs * oceanInflationFactor;
       const miscExpenseOcean = (oceanViewProperty.miscMaintenancePercentAsIs / 100) *
-                               (oceanViewProperty.currentValue *
-                                Math.pow(1 + oceanViewProperty.annualAppreciation / 100, year - 1));
+                               (oceanViewProperty.currentValue * Math.pow(1 + oceanViewProperty.annualAppreciation / 100, year - 1));
       const totalOceanExpenses = maintenanceExpenseOcean + insuranceExpenseOcean + miscExpenseOcean;
       // Property taxes.
       const primaryPropertyTax = primaryResidence.appraisedValue *
@@ -307,10 +311,8 @@ const LJPropertiesAnalyzer = () => {
       const annualCashflow = rentalIncome - propertyManagementFee - primaryPropertyTax - oceanPropertyTax -
                              totalPrimaryExpenses - totalOceanExpenses - primaryMortgageAnnual - oceanMortgageAnnualCurrent;
       option2.netCashflow.push(annualCashflow);
-      const primaryValueEndOfYear = primaryResidence.currentValue *
-        Math.pow(1 + primaryResidence.annualAppreciation / 100, year);
-      const oceanValueEndOfYear = oceanViewProperty.currentValue *
-        Math.pow(1 + oceanViewProperty.annualAppreciation / 100, year);
+      const primaryValueEndOfYear = primaryResidence.currentValue * Math.pow(1 + primaryResidence.annualAppreciation / 100, year);
+      const oceanValueEndOfYear = oceanViewProperty.currentValue * Math.pow(1 + oceanViewProperty.annualAppreciation / 100, year);
       option2.propertyValues.push(primaryValueEndOfYear + oceanValueEndOfYear);
       const cumulativeReturn = (annualCashflow * year) +
                                 (primaryValueEndOfYear + oceanValueEndOfYear) - (primaryResidence.currentValue + oceanViewProperty.currentValue);
@@ -360,7 +362,7 @@ const LJPropertiesAnalyzer = () => {
       const propertyManagementFee = rentalIncome * (financialAssumptions.propertyManagementFeePercentage / 100);
       const inflationFactor = Math.pow(1 + financialAssumptions.inflationRate / 100, year - 1);
       const apprFactorPrimary = Math.pow(1 + primaryResidence.annualAppreciation / 100, year - 1);
-      // Primary expenses (same as before).
+      // Primary expenses.
       const primaryMonthlyMaintenance = primaryResidence.maintenancePoolMonthly +
                                         primaryResidence.maintenanceGardeningMonthly +
                                         primaryResidence.maintenanceUtilitiesMonthly +
@@ -445,6 +447,50 @@ const LJPropertiesAnalyzer = () => {
     }
     option3.npv = npv3;
 
+    // --- Sales Breakdown for Each Year for Both Houses ---
+    const saleBreakdown = [];
+    for (let year = 1; year <= years; year++) {
+    // Primary Residence sale
+      const salePricePrimary = primaryResidence.currentValue * Math.pow(1 + primaryResidence.annualAppreciation/100, year - 1);
+      const commissionPrimary = salePricePrimary * 0.06;
+      const capitalGainsPrimary = Math.max(salePricePrimary - commissionPrimary - primaryResidence.taxBasis, 0);
+      const taxesPrimary = capitalGainsPrimary * (financialAssumptions.capitalGainsTaxRate/100);
+      const netProceedsPrimary = salePricePrimary - commissionPrimary - taxesPrimary;
+
+      // Ocean View As‑Is sale
+      const salePriceOceanAsIs = oceanViewProperty.currentValue * Math.pow(1 + oceanViewProperty.annualAppreciation/100, year - 1);
+      const commissionOceanAsIs = salePriceOceanAsIs * 0.06;
+      const capitalGainsOceanAsIs = Math.max(salePriceOceanAsIs - commissionOceanAsIs - oceanViewProperty.taxBasisAsIs, 0);
+      const taxesOceanAsIs = capitalGainsOceanAsIs * (financialAssumptions.capitalGainsTaxRate/100);
+      const netProceedsOceanAsIs = salePriceOceanAsIs - commissionOceanAsIs - taxesOceanAsIs;
+
+      // Ocean View Renovated sale
+      const salePriceOceanRenovated = oceanViewProperty.postRenovationValue * Math.pow(1 + oceanViewProperty.annualAppreciation/100, year - 1);
+      const commissionOceanRenovated = salePriceOceanRenovated * 0.06;
+      const capitalGainsOceanRenovated = Math.max(salePriceOceanRenovated - commissionOceanRenovated - oceanViewProperty.taxBasisRenovated, 0);
+      const taxesOceanRenovated = capitalGainsOceanRenovated * (financialAssumptions.capitalGainsTaxRate/100);
+      const netProceedsOceanRenovated = salePriceOceanRenovated - commissionOceanRenovated - taxesOceanRenovated;
+
+      saleBreakdown.push({
+        year,
+        salePricePrimary,
+       commissionPrimary,
+       taxableBasisPrimary: primaryResidence.taxBasis,
+        taxesPrimary,
+        netProceedsPrimary,
+        salePriceOceanAsIs,
+        commissionOceanAsIs,
+        taxableBasisOceanAsIs: oceanViewProperty.taxBasisAsIs,
+        taxesOceanAsIs,
+        netProceedsOceanAsIs,
+        salePriceOceanRenovated,
+        commissionOceanRenovated,
+        taxableBasisOceanRenovated: oceanViewProperty.taxBasisRenovated,
+        taxesOceanRenovated,
+        netProceedsOceanRenovated
+      });
+    }
+
     return {
       option1,
       option2,
@@ -454,15 +500,7 @@ const LJPropertiesAnalyzer = () => {
         option2: option2Breakdown,
         option3: option3Breakdown
       },
-      saleBreakdown: {
-        saleValue,
-        commission,
-        netSaleProceeds,
-        taxBasis: oceanViewProperty.taxBasis,
-        capitalGains,
-        capitalGainsTax,
-        afterTaxProceeds
-      }
+      saleBreakdown
     };
   }
 
@@ -520,6 +558,7 @@ const LJPropertiesAnalyzer = () => {
     <div style={{ marginBottom: '16px', borderBottom: '1px solid #e5e7eb' }}>
       <div style={{ display: 'flex', gap: '8px' }}>
         <TabButton id="assumptions" label="Assumptions" active={activeTab === 'assumptions'} />
+        <TabButton id="sales" label="Sales" active={activeTab === 'sales'} />
         <TabButton id="cashflow" label="Annual Cashflow" active={activeTab === 'cashflow'} />
         <TabButton id="propertyValues" label="Property Values" active={activeTab === 'propertyValues'} />
         <TabButton id="returns" label="Financial Returns" active={activeTab === 'returns'} />
@@ -546,7 +585,7 @@ const LJPropertiesAnalyzer = () => {
         <RenderInputField label="Utilities (Monthly)" name="maintenanceUtilitiesMonthly" value={primaryResidence.maintenanceUtilitiesMonthly} onChange={handlePrimaryChange} dollarSign={true} />
         <RenderInputField label="Other Upkeep (Monthly)" name="maintenanceOtherUpkeepMonthly" value={primaryResidence.maintenanceOtherUpkeepMonthly} onChange={handlePrimaryChange} dollarSign={true} />
         <RenderInputField label="Insurance (Yearly)" name="insuranceYearly" value={primaryResidence.insuranceYearly} onChange={handlePrimaryChange} dollarSign={true} />
-        <RenderInputField label="Misc Maintenance (% of Home Value)" name="miscMaintenancePercent" value={primaryResidence.miscMaintenancePercent} onChange={handlePrimaryChange} percent={true} />
+        <RenderInputField label="Misc Maintenance (%)" name="miscMaintenancePercent" value={primaryResidence.miscMaintenancePercent} onChange={handlePrimaryChange} percent={true} />
         <RenderInputField label="Mortgage Payment (Monthly)" name="mortgagePaymentMonthly" value={primaryResidence.mortgagePaymentMonthly} onChange={handlePrimaryChange} dollarSign={true} />
       </div>
 
@@ -555,7 +594,8 @@ const LJPropertiesAnalyzer = () => {
         <RenderInputField label="Current Value" name="currentValue" value={oceanViewProperty.currentValue} onChange={handleOceanViewChange} dollarSign={true} />
         <RenderInputField label="Appraised Value (As-Is)" name="appraisedValueAsIs" value={oceanViewProperty.appraisedValueAsIs} onChange={handleOceanViewChange} dollarSign={true} />
         <RenderInputField label="Appraised Value (Renovated)" name="appraisedValueRenovated" value={oceanViewProperty.appraisedValueRenovated} onChange={handleOceanViewChange} dollarSign={true} />
-        <RenderInputField label="Tax Basis" name="taxBasis" value={oceanViewProperty.taxBasis} onChange={handleOceanViewChange} dollarSign={true} />
+        <RenderInputField label="Tax Basis (As-Is)" name="taxBasisAsIs" value={oceanViewProperty.taxBasisAsIs} onChange={handleOceanViewChange} dollarSign={true} />
+        <RenderInputField label="Tax Basis (Renovated)" name="taxBasisRenovated" value={oceanViewProperty.taxBasisRenovated} onChange={handleOceanViewChange} dollarSign={true} />
         <RenderInputField label="Square Feet" name="squareFeet" value={oceanViewProperty.squareFeet} onChange={handleOceanViewChange} />
         <RenderInputField label="Renovation Cost" name="renovationCost" value={oceanViewProperty.renovationCost} onChange={handleOceanViewChange} dollarSign={true} />
         <RenderInputField label="Post-Renovation Value" name="postRenovationValue" value={oceanViewProperty.postRenovationValue} onChange={handleOceanViewChange} dollarSign={true} />
@@ -593,7 +633,7 @@ const LJPropertiesAnalyzer = () => {
     </div>
   );
 
-  // Generic breakdown table renderer.
+  // Helper: Render a breakdown table.
   const renderBreakdownTable = (data, columns) => (
     <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
       <thead style={{ backgroundColor: '#f3f4f6' }}>
@@ -610,9 +650,7 @@ const LJPropertiesAnalyzer = () => {
           <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
             {columns.map((col, i) => (
               <td key={i} style={{ padding: '6px', border: '1px solid #d1d5db', fontSize: '0.75rem', textAlign: 'center' }}>
-                {typeof row[col.field] === 'number' ? 
-  (col.field === 'discountFactor' ? row[col.field].toFixed(2) : formatNumber(row[col.field])) 
-  : row[col.field]}
+                {typeof row[col.field] === 'number' ? formatNumber(row[col.field]) : row[col.field]}
               </td>
             ))}
           </tr>
@@ -621,9 +659,65 @@ const LJPropertiesAnalyzer = () => {
     </table>
   );
 
+  // Render Sales Tab.
+  const renderSalesTab = () => (
+    <div>
+      {results.saleBreakdown.map((row) => (
+        <div key={row.year} style={{ marginBottom: '24px', padding: '12px', border: '1px solid #ccc', borderRadius: '8px' }}>
+          <h4>Year {row.year}</h4>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead style={{ backgroundColor: '#f9fafb' }}>
+              <tr>
+                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Metric</th>
+                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Primary Residence</th>
+                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Ocean View (As‑Is)</th>
+                <th style={{ border: '1px solid #d1d5db', padding: '8px' }}>Ocean View (Renovated)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ['Sale Price', 'salePricePrimary', 'salePriceOceanAsis', 'salePriceOceanRenovated'],
+                ['Commission', 'commissionPrimary', 'commissionOceanAsis', 'commissionOceanRenovated'],
+                ['Taxable Basis', 'taxableBasisPrimary', 'taxableBasisOceanAsIs', 'taxableBasisOceanRenovated'],
+                ['Taxes', 'taxesPrimary', 'taxesOceanAsIs', 'taxesOceanRenovated'],
+                ['Net Proceeds', 'netProceedsPrimary', 'netProceedsOceanAsIs', 'netProceedsOceanRenovated']
+              ].map(([label, pField, oAsIsField, oRenField]) => (
+                <tr key={label}>
+                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>{label}</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>${formatNumber(row[pField])}</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>${formatNumber(row[oAsIsField])}</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '8px' }}>${formatNumber(row[oRenField])}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
   // Render Cashflow Tab.
   const renderCashflowTab = () => {
-    // Helper for discounted cash flow will be in the NPV tab.
+    const renderDiscountedTable = (data, optionName) => {
+      const discountRate = financialAssumptions.investmentReturnRate / 100;
+      const columns = [
+        { label: 'Year', field: 'year' },
+        { label: 'Annual CF', field: 'annualCashflow' },
+        { label: 'Discount Factor', field: 'discountFactor' },
+        { label: 'Discounted CF', field: 'discountedCF' }
+      ];
+      const tableData = data.map((row) => {
+        const discountFactor = Math.pow(1 + discountRate, row.year);
+        const discountedCF = row.annualCashflow / discountFactor;
+        return { ...row, discountFactor, discountedCF };
+      });
+      return (
+        <div style={{ marginBottom: '16px' }}>
+          <h4>Discounted Cashflows – {optionName}</h4>
+          {renderBreakdownTable(tableData, columns)}
+        </div>
+      );
+    };
+
     return (
       <div>
         <div style={{ backgroundColor: '#eef', padding: '12px', marginBottom: '16px', borderRadius: '8px' }}>
@@ -685,6 +779,7 @@ const LJPropertiesAnalyzer = () => {
           <h4>Step-by-Step Cash Flow – Option 1 (Sale)</h4>
           {renderBreakdownTable(results.breakdown.option1, [
             { label: 'Year', field: 'year' },
+            { label: 'Corpus', field: 'corpusForInvestReturn' },
             { label: 'Invest Return', field: 'investmentReturn' },
             { label: 'Prim Tax', field: 'primaryPropertyTax' },
             { label: 'Maint Exp', field: 'maintenanceExpensePrimary' },
@@ -695,6 +790,7 @@ const LJPropertiesAnalyzer = () => {
             { label: 'Annual CF', field: 'annualCashflow' },
             { label: 'Cum Return', field: 'cumulativeReturn' }
           ])}
+
           <h4>Step-by-Step Cash Flow – Option 2 (Rent As-Is)</h4>
           {renderBreakdownTable(results.breakdown.option2, [
             { label: 'Year', field: 'year' },
@@ -713,6 +809,7 @@ const LJPropertiesAnalyzer = () => {
             { label: 'Annual CF', field: 'annualCashflow' },
             { label: 'Cum Return', field: 'cumulativeReturn' }
           ])}
+
           <h4>Step-by-Step Cash Flow – Option 3 (Renovate & Move)</h4>
           {renderBreakdownTable(results.breakdown.option3, [
             { label: 'Year', field: 'year' },
@@ -914,6 +1011,7 @@ const LJPropertiesAnalyzer = () => {
     <div style={{ padding: '24px' }}>
       {renderTabs()}
       {activeTab === 'assumptions' && renderAssumptionsTab()}
+      {activeTab === 'sales' && <LJPropertiesSales />}
       {activeTab === 'cashflow' && renderCashflowTab()}
       {activeTab === 'propertyValues' && renderPropertyValuesTab()}
       {activeTab === 'returns' && renderReturnsTab()}
